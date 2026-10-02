@@ -12,7 +12,7 @@ const extensionVersion = JSON.parse(readFileSync(join(__dirname, '../extension.j
 const runtime = buildSync({
     stdin: {
         contents: readFileSync(join(src, 'mcp-client.ts'), 'utf8')
-            + '\nexport const testQueue = { state, queue: mcpCommandQueue, run: handleQueuedMcpMessage, enqueue: enqueueMcpCommand, cancel: cancelMcpCommand, refreshMetadata: refreshEasyEdaMetadata };',
+            + '\nexport const testQueue = { state, queue: mcpCommandQueue, run: handleQueuedMcpMessage, enqueue: enqueueMcpCommand, cancel: cancelMcpCommand, refreshMetadata: refreshEasyEdaMetadata, connect: tryConnectMcp, stop: stopMcpScan };',
         loader: 'ts', resolveDir: src,
     },
     bundle: true, write: false, platform: 'node', format: 'cjs',
@@ -23,16 +23,19 @@ function fixture(
     save: () => Promise<string | null>,
     assembleBoard = async () => {},
     getCurrentProjectInfo = async () => ({ friendlyName: 'Fixture project' }),
+    abortController: unknown = AbortController,
 ) {
     const replies: any[] = [];
     const events: any[] = [];
     const module = { exports: {} as any };
+    let receive: ((event: { data: string }) => Promise<void>) | undefined;
     runInNewContext(runtime, {
-        module, exports: module.exports, setTimeout, clearTimeout, AbortController,
+        module, exports: module.exports, setTimeout, clearTimeout, setInterval, clearInterval, AbortController: abortController,
         ESCH_PrimitiveComponentType: {}, ESYS_LogType: {},
         eda: {
             sys_Log: { add() {} },
-            sys_WebSocket: { send(_id: string, value: string) {
+            sys_Message: { showToastMessage() {} },
+            sys_WebSocket: { close() {}, register(_id: string, _url: string, callback: typeof receive) { receive = callback; }, send(_id: string, value: string) {
                 const message = JSON.parse(value);
                 const body = JSON.parse(message.body);
                 events.push({ event: message.event, body });
@@ -49,7 +52,7 @@ function fixture(
             return {};
         },
     });
-    const { state, queue, enqueue: submit, cancel, refreshMetadata } = module.exports.testQueue;
+    const { state, queue, enqueue: submit, cancel, refreshMetadata, connect, stop } = module.exports.testQueue;
     state.isRegistered = true;
     const enqueue = (id: string, deadline = Date.now() + 1000, event = 'checkpoint-save', body = {}) => submit({
         event, body: JSON.stringify({ ...body, id, __easyedaCopilotDeadlineAt: deadline }),
@@ -57,8 +60,35 @@ function fixture(
     return {
         enqueue, replies, events, state, queue, refreshMetadata,
         cancel: (id: string) => cancel({ body: JSON.stringify({ id }) }),
+        async receive(message: unknown) {
+            state.isRegistered = false;
+            state.isScanEnabled = true;
+            connect();
+            state.isRegistered = true;
+            try { await receive!({ data: JSON.stringify(message) }); }
+            finally { stop(false); }
+        },
     };
 }
+
+test('transport immediately replies when a command fails before entering the queue', async () => {
+    let executed = false;
+    const broken = fixture(async () => { executed = true; return 'checkpoint'; }, undefined, undefined, null);
+    await broken.receive({ event: 'checkpoint-save', body: JSON.stringify({ id: 'missing-controller' }) });
+    assert.equal(executed, false);
+    assert.equal(broken.queue.size, 0);
+    assert.equal(broken.replies.length, 1);
+    assert.equal(broken.replies[0].id, 'missing-controller');
+    assert.equal(broken.replies[0].ok, false);
+    assert.match(broken.replies[0].error, /AbortController.*constructor/);
+});
+
+test('malformed command bodies do not throw again while attempting an error reply', async () => {
+    const f = fixture(async () => 'checkpoint');
+    await f.receive({ event: 'checkpoint-save', body: '{invalid json' });
+    assert.equal(f.replies.length, 0);
+    assert.equal(f.queue.size, 0);
+});
 
 test('heartbeat metadata refresh updates the project name only when it changes', async () => {
     let projectName = 'Project A';

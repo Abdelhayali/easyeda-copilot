@@ -1,4 +1,5 @@
 import type esbuild from 'esbuild';
+import { resolve } from 'node:path';
 
 export default {
 	entryPoints: {
@@ -14,6 +15,8 @@ export default {
 	platform: 'browser', // 用于内部方法调用，请勿修改
 	format: 'iife', // 用于内部方法调用，请勿修改
 	globalName: 'edaEsbuildExportName', // 用于内部方法调用，请勿修改
+	// Side-effect injection runs before entry dependencies and participates in watch builds.
+	inject: [resolve(__dirname, '../src/runtime-bootstrap.ts')],
 	treeShaking: true,
 	ignoreAnnotations: true,
 	define: {},

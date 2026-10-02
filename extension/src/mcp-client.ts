@@ -1991,8 +1991,9 @@ async function handleMessage(message: McpMessage, connectionEpoch: number, signa
 
 function replyMcpError(message: McpMessage, error: string, connectionEpoch: number) {
     if (connectionEpoch !== state.connectionEpoch || !state.isRegistered) return;
-    const body = parseBody<{ id?: string }>(message);
-    if (!body.id) return;
+    let body: { id?: string };
+    try { body = parseBody(message); } catch { return; }
+    if (!body?.id) return;
 
     send(`${message.event}:result`, {
         id: body.id,
@@ -2103,10 +2104,11 @@ function tryConnectMcp(showErrors = false) {
         MCP_WS_ID,
         MCP_WS_URL,
         async (event) => {
+            let message: McpMessage | undefined;
             try {
                 if (connectionEpoch !== state.connectionEpoch) return;
                 const data = typeof event.data === 'string' ? event.data : String(event.data);
-                const message = JSON.parse(data) as McpMessage;
+                message = JSON.parse(data) as McpMessage;
 
                 if (message.event === 'cancel-command') {
                     cancelMcpCommand(message);
@@ -2125,9 +2127,13 @@ function tryConnectMcp(showErrors = false) {
 
                 void enqueueMcpCommand(message, connectionEpoch)?.catch(error => {
                     eda.sys_Log.add(`MCP queued command error: ${(error as Error).message}`, ESYS_LogType.ERROR);
+                    replyMcpError(message!, error instanceof Error ? error.message : String(error), connectionEpoch);
                 });
             } catch (error) {
                 eda.sys_Log.add(`MCP message error: ${(error as Error).message}`, ESYS_LogType.ERROR);
+                if (message) {
+                    replyMcpError(message, error instanceof Error ? error.message : String(error), connectionEpoch);
+                }
             }
         },
         () => {
