@@ -75,7 +75,7 @@ export function installEasyEdaFixture() {
   const requests = [];
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
-    assert.equal(url.hostname, 'pro.easyeda.com', `Unexpected network dependency: ${url.hostname}`);
+    assert.equal(url.hostname, process.env.EDA_TEST_API_HOST || 'pro.easyeda.com', `Unexpected network dependency: ${url.hostname}`);
     requests.push({ path: url.pathname, body: String(init?.body ?? '') });
     if (url.pathname === '/api/v2/eda/product/search') {
       const keyword = new URLSearchParams(init?.body).get('keyword');

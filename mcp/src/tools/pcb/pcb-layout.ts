@@ -15,6 +15,7 @@ import { SKILL_DOC_PATH } from "../../utils/dirs";
 import { operationManager, type OperationContext } from '../../operations/manager';
 import type { ExplainCircuit } from '@copilot/shared/types/circuit';
 import { managedMutationHandler, targetedToolHandler, toolHandler } from '../handler';
+import { getEdaApiOptions } from '../../utils/eda-api-options';
 
 type MakePcbLayoutResponse = {
     content?: string;
@@ -273,6 +274,7 @@ async function runPcbLayout(
     context: OperationContext,
 ) {
     context.setStage('preparing');
+    const apiOptions = await getEdaApiOptions(bridge);
     // Capture placement before schematic extraction changes the active EasyEDA document.
     const [code, rawExistingPlacement] = await Promise.all([
         readFile(file, 'utf8'),
@@ -295,6 +297,7 @@ async function runPcbLayout(
     const result = await generatePcbLayout({
         code, circuit, ...(existingPlacement ? { existingPlacement } : {}),
     }, {
+        ...apiOptions,
         signal: context.signal,
         onProgress: progress => context.setProgress({
             message: progress.content, details: progress,
@@ -349,6 +352,7 @@ export function registerPcbLayoutTools(server: McpServer, bridge: Bridge) {
             }),
         },
         toolHandler(bridge, async ({ designators, includeAll }) => {
+            const apiOptions = await getEdaApiOptions(bridge);
             const circuit = await bridge.requestEasyEda('get-multi-page-schematic', {
                 extractFootprintUuid: true
             }) as ExplainCircuit;
@@ -356,7 +360,7 @@ export function registerPcbLayoutTools(server: McpServer, bridge: Bridge) {
                 circuit,
                 designators,
                 includeAll,
-            }) as PcbComponentSizesResponse;
+            }, apiOptions) as PcbComponentSizesResponse;
 
             return textResult(result.content ?? result.error ?? result);
         }),

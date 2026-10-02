@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### JLCEDA compatibility
+
+- Detect the connected edition with guarded `isJLCEDAProEdition()` and pass it explicitly to backend component, schematic and PCB resolution. Default missing metadata to international EasyEDA; keep concurrent instances separate.
+
 ### Release automation
 
 - Wait for the tested npm version and SHA-512 integrity to become visible before publishing its MCP Registry entry.

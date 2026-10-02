@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { componentSymbol } from 'eda-copilot-backend/components';
+import type { EdaApiOptions } from 'eda-copilot-backend/types';
 import type { Component } from 'eda-copilot-backend/components';
 import { renderComponentSymbol } from '../component-symbol-preview';
 import { TEMP_DIR } from './dirs';
@@ -19,8 +20,8 @@ export function needsSymbolPreview(component: Component) {
     });
 }
 
-export async function createComponentPreview(partUuid: Component['part_uuid']) {
-    const { dataStr } = await componentSymbol(partUuid);
+export async function createComponentPreview(partUuid: Component['part_uuid'], options: EdaApiOptions = {}) {
+    const { dataStr } = await componentSymbol(partUuid, options);
     const preview = renderComponentSymbol(dataStr);
     const png = await svgToPng(preview.svg, { width: 1024, height: 1200, withoutEnlargement: true });
     const directory = join(TEMP_DIR, 'component-previews');

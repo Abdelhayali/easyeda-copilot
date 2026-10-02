@@ -1110,10 +1110,15 @@ function markMcpDisconnected(reason: string) {
 }
 
 function sendEasyEdaMetadata(projectName: string) {
+    let edaEdition: 'easyeda' | 'jlceda' = 'easyeda';
+    try {
+        if (eda.sys_Environment.isJLCEDAProEdition() === true) edaEdition = 'jlceda';
+    } catch { /* Missing or failing edition detection defaults to international EasyEDA. */ }
     send('easyeda:hello', {
         instanceId: state.instanceId,
         projectName,
         extensionVersion: extension.version,
+        edaEdition,
     });
 }
 

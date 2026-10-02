@@ -13,6 +13,7 @@ export type EasyEdaInstance = {
     instanceId: string;
     projectName: string;
     extensionVersion?: string;
+    edaEdition?: 'easyeda' | 'jlceda';
     connectedAt: number;
     lastSeenAt: number;
 };
@@ -144,6 +145,7 @@ class OwnerBroker {
             instanceId: client.instanceId,
             projectName: client.projectName,
             extensionVersion: client.extensionVersion,
+            edaEdition: client.edaEdition,
             connectedAt: client.connectedAt,
             lastSeenAt: client.lastSeenAt,
         }));
@@ -297,6 +299,7 @@ class OwnerBroker {
         const extensionVersion = typeof value.extensionVersion === 'string' && value.extensionVersion.trim()
             ? value.extensionVersion.trim()
             : undefined;
+        const edaEdition = value.edaEdition === 'jlceda' ? 'jlceda' : 'easyeda';
 
         const previousInstanceId = socket[INSTANCE_ID];
         if (previousInstanceId && previousInstanceId !== instanceId) {
@@ -322,6 +325,7 @@ class OwnerBroker {
             instanceId,
             projectName,
             extensionVersion,
+            edaEdition,
             socket,
             connectedAt: existing?.connectedAt ?? now,
             lastSeenAt: now,

@@ -24,6 +24,7 @@ function fixture(
     assembleBoard = async () => {},
     getCurrentProjectInfo = async () => ({ friendlyName: 'Fixture project' }),
     abortController: unknown = AbortController,
+    sysEnvironment: unknown = {},
 ) {
     const replies: any[] = [];
     const events: any[] = [];
@@ -33,6 +34,7 @@ function fixture(
         module, exports: module.exports, setTimeout, clearTimeout, setInterval, clearInterval, AbortController: abortController,
         ESCH_PrimitiveComponentType: {}, ESYS_LogType: {},
         eda: {
+            sys_Environment: sysEnvironment,
             sys_Log: { add() {} },
             sys_Message: { showToastMessage() {} },
             sys_WebSocket: { close() {}, register(_id: string, _url: string, callback: typeof receive) { receive = callback; }, send(_id: string, value: string) {
@@ -97,6 +99,7 @@ test('heartbeat metadata refresh updates the project name only when it changes',
     assert.equal(f.events.at(-1).event, 'easyeda:hello');
     assert.equal(f.events.at(-1).body.projectName, 'Project A');
     assert.equal(f.events.at(-1).body.extensionVersion, extensionVersion);
+    assert.equal(f.events.at(-1).body.edaEdition, 'easyeda');
 
     const sent = f.events.length;
     await f.refreshMetadata(f.state.connectionEpoch);
@@ -106,6 +109,21 @@ test('heartbeat metadata refresh updates the project name only when it changes',
     await f.refreshMetadata(f.state.connectionEpoch);
     assert.equal(f.events.at(-1).body.projectName, 'Project B');
     assert.equal(f.events.at(-1).body.instanceId, f.state.instanceId);
+});
+
+test('edition metadata handles Chinese, international, missing and throwing APIs', async () => {
+    for (const [environment, expected] of [
+        [{ isJLCEDAProEdition: () => true }, 'jlceda'],
+        [{ isJLCEDAProEdition: () => false }, 'easyeda'],
+        [{}, 'easyeda'],
+        [undefined, 'easyeda'],
+        [{ get isJLCEDAProEdition() { throw new Error('blocked getter'); } }, 'easyeda'],
+        [{ isJLCEDAProEdition() { throw new Error('blocked call'); } }, 'easyeda'],
+    ] as const) {
+        const f = fixture(async () => 'checkpoint', undefined, undefined, AbortController, environment);
+        await f.refreshMetadata(f.state.connectionEpoch);
+        assert.equal(f.events.at(-1).body.edaEdition, expected);
+    }
 });
 
 test('actual MCP handler releases its queue and suppresses the late success reply', async () => {

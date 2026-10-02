@@ -78,7 +78,7 @@ try {
     editor.on('message', async raw => {
       const { event, body: encoded } = JSON.parse(raw.toString());
       if (event === 'connected') {
-        editor.send(JSON.stringify({ event: 'easyeda:hello', body: JSON.stringify({ instanceId: 'backend-check', projectName: 'Backend fixtures' }) }));
+        editor.send(JSON.stringify({ event: 'easyeda:hello', body: JSON.stringify({ instanceId: 'backend-check', projectName: 'Backend fixtures', ...(process.env.EDA_TEST_API_HOST === 'pro.lceda.cn' ? { edaEdition: 'jlceda' } : {}) }) }));
         editor.send(JSON.stringify({ event: 'ping', body: '{}' }));
       } else if (event === 'pong') {
         clearTimeout(timer);
@@ -95,6 +95,8 @@ try {
     });
   });
   await ready;
+  assert.equal((await call('list_easyeda_instances', {})).instances[0].edaEdition,
+    process.env.EDA_TEST_API_HOST === 'pro.lceda.cn' ? 'jlceda' : 'easyeda');
   assert.ok(tools.some(tool => tool.name === 'get_schematic'));
   assert.ok(!tools.some(tool => tool.name === 'get_current_page_schematic'));
   assert.deepEqual(await call('get_schematic', {}), currentSchematic);

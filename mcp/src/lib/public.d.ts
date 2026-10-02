@@ -17,6 +17,7 @@ export interface ConnectOptions {
 export interface EasyEdaInstance {
     instanceId: string;
     projectName: string;
+    edaEdition?: 'easyeda' | 'jlceda';
     connectedAt: number;
     lastSeenAt: number;
 }

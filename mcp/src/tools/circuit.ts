@@ -12,6 +12,7 @@ import { managedMutationHandler, toolHandler } from './handler';
 import { isMissingPartUuid, PartUuidStruct } from '@copilot/shared/types/lcsc';
 import { createComponentPreview, needsSymbolPreview } from '../utils/component-preview';
 import { readOtherPageSignals } from '../utils/other-page-signals';
+import { getEdaApiOptions } from '../utils/eda-api-options';
 
 type SchematicBlocks = Record<string, string[]>;
 
@@ -105,12 +106,13 @@ export function registerCircuitTools(server: McpServer, bridge: Bridge) {
                 return textResult('Fill one: part_uuid or MPN');
             }
 
-            const result = await componentSearch({ part_uuid, MPN, library_uuid });
+            const apiOptions = await getEdaApiOptions(bridge);
+            const result = await componentSearch({ part_uuid, MPN, library_uuid }, apiOptions);
             const annotate = async (component: Component) => {
                 const preview_recommended = needsSymbolPreview(component);
                 if (!preview_recommended) return component;
                 try {
-                    const preview = await createComponentPreview(component.part_uuid);
+                    const preview = await createComponentPreview(component.part_uuid, apiOptions);
                     return { ...component, preview_recommended, preview_image_path: preview.image_path };
                 } catch (error) {
                     return {
@@ -143,7 +145,7 @@ export function registerCircuitTools(server: McpServer, bridge: Bridge) {
             }),
         },
         toolHandler(bridge, async ({ part_uuid }) => {
-            const preview = await createComponentPreview(part_uuid);
+            const preview = await createComponentPreview(part_uuid, await getEdaApiOptions(bridge));
             return textResult({ image_path: preview.image_path });
         }),
     );
@@ -178,6 +180,7 @@ export function registerCircuitTools(server: McpServer, bridge: Bridge) {
             }),
         },
         managedMutationHandler(bridge, 'extract_circuit_on_current_page', async ({ file_path, ...inlineCircuit }) => {
+            const apiOptions = await getEdaApiOptions(bridge);
             const hasInlineChanges = inlineCircuit.add_components.length > 0
                 || inlineCircuit.add_reused_blocks.length > 0
                 || inlineCircuit.rm_components !== null
@@ -203,7 +206,7 @@ export function registerCircuitTools(server: McpServer, bridge: Bridge) {
             const resolvedInputCircuit = await bridge.requestEasyEda('get-schematic') as ExplainCircuit;
             const otherPageSignals = await readOtherPageSignals(() => bridge.requestEasyEda('get-other-page-signals'));
             const result = await extractCircuit({ circuit, inputCircuit: resolvedInputCircuit,
-                assemblyOptions: { otherPageSignals } });
+                assemblyOptions: { otherPageSignals } }, apiOptions);
             const assembled = await bridge.requestEasyEda('assemble-circuit', result as Record<string, unknown>);
             const sheetSpace = sheetSpaceNotice(assembled);
             return textResult({
@@ -232,6 +235,7 @@ export function registerCircuitTools(server: McpServer, bridge: Bridge) {
             }),
         },
         managedMutationHandler(bridge, 'beautify_schematic_on_current_page', async ({ blocks, draw_block_box, auto_resize_page }) => {
+            const apiOptions = await getEdaApiOptions(bridge);
             const inputCircuit = await bridge.requestEasyEda('get-schematic', { includePortStyles: true }) as ExplainCircuit;
             const otherPageSignals = await readOtherPageSignals(() => bridge.requestEasyEda('get-other-page-signals'));
             if (!inputCircuit.components.length) throw new Error('The current schematic page has no components.');
@@ -282,7 +286,7 @@ export function registerCircuitTools(server: McpServer, bridge: Bridge) {
                 circuit,
                 inputCircuit: { components: [] },
                 assemblyOptions: { otherPageSignals },
-            });
+            }, apiOptions);
             const assembly = serverAssembly(response);
             if (!assembly || !Array.isArray(assembly.components)) {
                 throw new Error('Beautify returned an invalid circuit assembly.');
