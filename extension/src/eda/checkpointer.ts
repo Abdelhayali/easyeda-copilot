@@ -10,8 +10,8 @@ interface Checkpoint {
 }
 
 const checkpointsDb = new AppDBClient(false).init('checkpoints', {
-    // These are indexes, not allowed fields. Keep them unchanged for existing databases.
-    checkpoints: ['timestamp', 'content', '_id', 'pageId']
+    // _id is the primary key; current queries need no secondary indexes.
+    checkpoints: []
 });
 
 let lastCheckpoint: Checkpoint | undefined;

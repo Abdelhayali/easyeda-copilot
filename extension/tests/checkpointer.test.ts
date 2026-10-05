@@ -19,7 +19,7 @@ function load(rows: Saved[]) {
         async init(name: string, indexes: unknown) {
             assert.equal(name, 'checkpoints');
             assert.deepEqual(JSON.parse(JSON.stringify(indexes)), {
-                checkpoints: ['timestamp', 'content', '_id', 'pageId'],
+                checkpoints: [],
             });
             return { checkpoints: {
                 find: async (query: { _id?: string }) => structuredClone(rows.filter(row => !query._id || row._id === query._id)),
